@@ -117,6 +117,11 @@ def get_csr_ios(aw, dw):
         ),
     ]
 
+def get_irq_ios(num_irqs):
+    return [
+        ("irq_lines", 0, Pins(num_irqs)),
+    ]
+
 def get_native_user_port_ios(_id, aw, dw):
     return [
         ("user_port_{}".format(_id), 0,
@@ -404,6 +409,17 @@ class LiteDRAMCore(SoCSDRAM):
             if self.cpu_type == None:
                 csr_base = core_config.get("csr_base", 0)
                 self.shadow_base = csr_base;
+
+        # interrupt lines
+        if core_config.get("expose_irq_lines", "no") == "yes":
+            num_irqs = len(self.soc_interrupt_map)
+            platform.add_extension(get_irq_ios(num_irqs))
+            _irq_lines = platform.request("irq_lines")
+            for _name, _id in sorted(self.soc_interrupt_map.items()):
+                if hasattr(self, _name):
+                    module = getattr(self, _name)
+                    assert hasattr(module, 'ev'), "Submodule %s does not have EventManager (xx.ev) module" % _name
+                    self.comb += _irq_lines[_id].eq(module.ev.irq)
 
         # User ports -------------------------------------------------------------------------------
         self.comb += [
